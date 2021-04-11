@@ -12,9 +12,11 @@ Place discordrelay.smx inside of `./cstrike/addons/sourcemod/plugins`
 
 # Dependencies
 
+SMJansson - https://forums.alliedmods.net/showthread.php?t=184604
+
 discord-api - https://github.com/Deathknife/sourcemod-discord
 
-ripext (sourcemod REST api) **Only required if using discrelay_servertodiscordavatars** - https://github.com/ErikMinekus/sm-ripext
+ripext (sourcemod REST api) - https://github.com/ErikMinekus/sm-ripext
 
 # Configuration
 
