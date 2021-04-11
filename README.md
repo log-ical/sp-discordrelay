@@ -14,9 +14,9 @@ Place discordrelay.smx inside of `./cstrike/addons/sourcemod/plugins`
 
 SMJansson - https://forums.alliedmods.net/showthread.php?t=184604
 
-discord-api - https://github.com/Deathknife/sourcemod-discord
+discord-api - https://forums.alliedmods.net/showthread.php?t=292448
 
-ripext (sourcemod REST api) - https://github.com/ErikMinekus/sm-ripext
+ripext (sourcemod REST api) - https://forums.alliedmods.net/showthread.php?t=298024
 
 # Configuration
 
