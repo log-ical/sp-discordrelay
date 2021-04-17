@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.1.5"
+#define PLUGIN_VERSION      "0.2.0"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -13,7 +13,7 @@
 #include <sdktools>
 #include <cstrike>
 #include <discord>
-#include <morecolors>
+#include <multicolors>
 #undef REQUIRE_EXTENSIONS
 #include <ripext>
 
@@ -81,9 +81,20 @@ public void OnPluginStart()
     g_cvMessage = CreateConVar("discrelay_message", "1", "relays client messages to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvHideExclamMessage = CreateConVar("discrelay_hideexclammessage", "1", "Hides any message that begins with !");
 
-    g_cvmsg_textcol = CreateConVar("discrelay_msg_textcol", "{white}", "text color of discord to server text (refer to github for support)");
-    g_cvmsg_varcol = CreateConVar("discrelay_msg_varcol", "{red}", "variable color of discord to sever text (refer to github for support)");
+    g_cvmsg_textcol = CreateConVar("discrelay_msg_textcol", "{default}", "text color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
+    g_cvmsg_varcol = CreateConVar("discrelay_msg_varcol", "{default}", "variable color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
     AutoExecConfig(true, "discordrelay");
+
+    //I'm not sure I like how I do this here
+    g_cvSteamApiKey.AddChangeHook(OnSteamApiKeyChanged);
+    g_cvDiscordBotToken.AddChangeHook(OnDiscordTokenChanged);
+    g_cvDiscordWebhook.AddChangeHook(OnWebhookChanged);
+
+    g_cvDiscordServerId.AddChangeHook(OnDiscordServerIdChanged);
+    g_cvChannelId.AddChangeHook(OnDiscordChannelIdChanged);
+
+    g_cvmsg_textcol.AddChangeHook(OnTextColChange);
+    g_cvmsg_varcol.AddChangeHook(OnVarColChange);
 
     g_cvSteamApiKey.GetString(g_sSteamApiKey, sizeof(g_sSteamApiKey));
     g_cvDiscordBotToken.GetString(g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
@@ -102,6 +113,34 @@ public void OnPluginStart()
     }
 }
 
+public void OnSteamApiKeyChanged(ConVar convar, char[] oldValue, char[] newValue)
+{
+    g_cvSteamApiKey.GetString(g_sSteamApiKey, sizeof(g_sSteamApiKey));
+}
+public void OnDiscordTokenChanged(ConVar convar, char[] oldValue, char[] newValue)
+{
+    g_cvDiscordBotToken.GetString(g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
+}
+public void OnWebhookChanged(ConVar convar, char[] oldValue, char[] newValue)
+{
+    g_cvDiscordWebhook.GetString(g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
+}
+public void OnDiscordServerIdChanged(ConVar convar, char[] oldValue, char[] newValue)
+{
+    g_cvDiscordServerId.GetString(g_sDiscordServerId, sizeof(g_sDiscordServerId));
+}
+public void OnDiscordChannelIdChanged(ConVar convar, char[] oldValue, char[] newValue)
+{
+    g_cvChannelId.GetString(g_sChannelId, sizeof(g_sChannelId));
+}
+public void OnTextColChange(ConVar convar, char[] oldValue, char[] newValue)
+{   
+    g_cvmsg_textcol.GetString(g_msg_textcol, sizeof(g_msg_textcol));
+}
+public void OnVarColChange(ConVar convar, char[] oldValue, char[] newValue)
+{
+    g_cvmsg_varcol.GetString(g_msg_varcol, sizeof(g_msg_varcol));
+}
 
 public void OnClientPutInServer(int client)
 {
@@ -257,7 +296,7 @@ public void GuildList(DiscordBot bot, char[] id, char[] name, char[] icon, bool 
 
 public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, const bool listen)
 {
-	if(StrEqual(guild, g_sDiscordServerId)) // discord server id
+	if(StrEqual(guild, g_sDiscordServerId))
 	{
 		if(g_dBot == null || chl == null)
 		{
@@ -270,8 +309,8 @@ public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, 
 		char id[20], name[32];
 		chl.GetID(id, sizeof(id));
 		chl.GetName(name, sizeof(name));
-		if(StrEqual(id, g_sChannelId)) // `#in-game` channel id
-		{
+		if(StrEqual(id, g_sChannelId))
+        {
 			g_dBot.StartListeningToChannel(chl, OnDiscordMessageSent);
 		}
 	}
@@ -292,7 +331,6 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
 	author.GetUsername(discorduser, sizeof(discorduser));
 	author.GetDiscriminator(discriminator, sizeof(discriminator));
 	delete author;
-
 
 	CPrintToChatAll("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
 															g_msg_varcol, discorduser, g_msg_textcol,
