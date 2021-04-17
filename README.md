@@ -52,4 +52,4 @@ Hides any message that begins with !, discrelay_message needs to be enabled for 
 								g_msg_varcol, discorduser, g_msg_textcol,
 								g_msg_varcol, discriminator, g_msg_textcol,
 								message);
-discorduser, discriminator, and message are discord things, but g_msg_textcol and g_msg_varcol refer to the colors used for the message that will be sent to the server when doing discord -> server. The plugin uses morecolors.inc to supply the colors, so when setting the cvar make sure to set it like {red} for example. For a list of colors you can refer to https://forums.alliedmods.net/showthread.php?t=185016 
+discorduser, discriminator, and message are discord things, but g_msg_textcol and g_msg_varcol refer to the colors used for the message that will be sent to the server when doing discord -> server. The plugin uses morecolors.inc to supply the colors, so when setting the cvar make sure to set it like {red} for example. Depending on the game you are using different options to set the color can be chosen such as using hex (more information here). 
