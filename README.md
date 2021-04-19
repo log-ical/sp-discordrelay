@@ -2,10 +2,6 @@
 
 Discord ⇄ Server interaction made for CS:S
 
-# To-Do
-- [ ] Simplify cvars
-- [ ] Add more customization to messages 
-
 # Installation
 
 Place discordrelay.smx inside of `./cstrike/addons/sourcemod/plugins`
