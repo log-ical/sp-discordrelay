@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.2.0"
+#define PLUGIN_VERSION      "0.3.0"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -96,19 +96,18 @@ public void OnPluginStart()
     g_cvmsg_textcol.AddChangeHook(OnTextColChange);
     g_cvmsg_varcol.AddChangeHook(OnVarColChange);
 
-    g_cvSteamApiKey.GetString(g_sSteamApiKey, sizeof(g_sSteamApiKey));
-    g_cvDiscordBotToken.GetString(g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
-    g_cvDiscordWebhook.GetString(g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
-
-    g_cvDiscordServerId.GetString(g_sDiscordServerId, sizeof(g_sDiscordServerId));
-    g_cvChannelId.GetString(g_sChannelId, sizeof(g_sChannelId));
     
+    GetConVarString(g_cvSteamApiKey, g_sSteamApiKey, sizeof(g_sSteamApiKey));
+    GetConVarString(g_cvDiscordBotToken, g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
+    GetConVarString(g_cvDiscordWebhook, g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
 
-    g_cvmsg_textcol.GetString(g_msg_textcol, sizeof(g_msg_textcol));
-    g_cvmsg_varcol.GetString(g_msg_varcol, sizeof(g_msg_varcol));
+    GetConVarString(g_cvDiscordServerId, g_sDiscordServerId, sizeof(g_sDiscordServerId));
+    GetConVarString(g_cvChannelId, g_sChannelId, sizeof(g_sChannelId));
+
+    GetConVarString(g_cvmsg_textcol, g_msg_textcol, sizeof(g_msg_textcol));
+    GetConVarString(g_cvmsg_varcol, g_msg_varcol, sizeof(g_msg_varcol));
 
     if(g_cvDiscordToServer.BoolValue) {
-        g_dBot = new DiscordBot(g_sDiscordBotToken);
         CreateTimer(5.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
     }
 }
@@ -193,6 +192,7 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
         return;
     if(!g_cvMessage.BoolValue)
         return;
+    
     char clientName[32];
     GetClientName(client, clientName, 32);
     
@@ -232,12 +232,22 @@ public void PrintToDiscordSay(int client, const char[] msg, any ...)
 {
     if(!g_cvServerToDiscord.BoolValue)
         return;
-    char clientName[32];
-    GetClientName(client, clientName, 32);
 
     DiscordWebHook hook = new DiscordWebHook(g_sDiscordWebhook);
 
     hook.SlackMode = true;
+
+    if(!IsValidClient(client))
+    {
+        hook.SetContent(msg);
+        //we will just assume that if it isn't a valid client then it must be the server
+        hook.SetUsername("Server");
+        hook.Send();
+        return;
+    }
+    
+    char clientName[32];
+    GetClientName(client, clientName, 32);
 
     if(g_cvServerToDiscordAvatars.BoolValue)
         hook.SetAvatar(playersdata[client].avatarurl);
@@ -281,20 +291,22 @@ public void PrintToDiscordMapChange(const char[] map, const char[] color)
 
 public Action Timer_GetGuildList(Handle timer)
 {
-	ParseGuilds();
+
+    g_dBot = new DiscordBot(g_sDiscordBotToken);
+    ParseGuilds();
 }
 
 stock void ParseGuilds()
 {	
-	g_dBot.GetGuilds(GuildList, _, true);
+    g_dBot.GetGuilds(GuildList);
 }
 
-public void GuildList(DiscordBot bot, char[] id, char[] name, char[] icon, bool owner, int permissions, const bool listen)
+public void GuildList(DiscordBot bot, char[] id, char[] name, char[] icon, bool owner, int permissions, any data)
 {
-	g_dBot.GetGuildChannels(id, ChannelList, INVALID_FUNCTION, listen);
+    g_dBot.GetGuildChannels(id, ChannelList, INVALID_FUNCTION);
 }
 
-public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, const bool listen)
+public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, any data)
 {
 	if(StrEqual(guild, g_sDiscordServerId))
 	{
@@ -340,38 +352,40 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
 
 stock void SteamAPIRequest(int client)
 {
-	HTTPClient httpClient;
-	char endpoint[1024];
-	char steamid[64];
+    HTTPClient httpClient;
+    char endpoint[1024];
+    char steamid[64];
 
-	GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
-	
-	Format(endpoint, sizeof endpoint, "ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
-	httpClient = new HTTPClient("https://api.steampowered.com/");
-	httpClient.Get(endpoint, SteamResponse_Callback, client);
+    GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
+
+    Format(endpoint, sizeof(endpoint), "ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
+    httpClient = new HTTPClient("https://api.steampowered.com/");
+
+    httpClient.Get(endpoint, SteamResponse_Callback, client);
+
 }
 
 stock void SteamResponse_Callback(HTTPResponse response, int client)
 {
-	if (response.Status != HTTPStatus_OK) 
-		return;
-
-	JSONObject objects = view_as<JSONObject>(response.Data);
-	JSONObject Response = view_as<JSONObject>(objects.Get("response"));
-	JSONArray players = view_as<JSONArray>(Response.Get("players"));
-
-	int playerlen = players.Length;
-	JSONObject player;
-
-	for (int i = 0; i < playerlen; i++)
-	{
-		player = view_as<JSONObject>(players.Get(i));
-		player.GetString("avatarmedium", playersdata[client].avatarurl, sizeof(playerData::avatarurl));
-		delete player;
-	}
+    if (response.Status != HTTPStatus_OK){
+        LogError("SteamAPI request fail, HTTPSResponse code %i", response.Status);
+        return;
+    }
+    JSONObject objects = view_as<JSONObject>(response.Data);
+    JSONObject Response = view_as<JSONObject>(objects.Get("response"));
+    JSONArray players = view_as<JSONArray>(Response.Get("players"));
+    int playerlen = players.Length;
+    JSONObject player;
+    for (int i = 0; i < playerlen; i++)
+    {
+        player = view_as<JSONObject>(players.Get(i));
+        player.GetString("avatarmedium", playersdata[client].avatarurl, sizeof(playerData::avatarurl));
+        delete player;
+    }
+ 
     /*connection message delayed so steamapi has time to fetch what it needs*/
-	if(g_cvConnectMessage.BoolValue)
-		PrintToDiscord(client, GREEN, "connected");
+    if(g_cvConnectMessage.BoolValue)
+        PrintToDiscord(client, GREEN, "connected");
 }
 
 stock bool IsValidClient(int client)
