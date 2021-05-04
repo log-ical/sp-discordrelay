@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.3.0"
+#define PLUGIN_VERSION      "0.4.0"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -13,6 +13,7 @@
 #include <sdktools>
 #include <cstrike>
 #include <discord>
+#include <geoip>
 #include <multicolors>
 #undef REQUIRE_EXTENSIONS
 #include <ripext>
@@ -40,6 +41,7 @@ playerData playersdata[MAXPLAYERS + 1];
 #define RED "#ff2222"
 #define YELLOW "#daa520"
 
+bool maptimer = false;
 
 ConVar g_cvmsg_textcol; char g_msg_textcol[32];
 ConVar g_cvmsg_varcol; char g_msg_varcol[32];
@@ -56,6 +58,7 @@ ConVar g_cvServerToDiscord; //requires discord bot key
 ConVar g_cvDiscordToServer; //requires discord webhook
 ConVar g_cvServerToDiscordAvatars; //requires steam api key
 
+ConVar g_cvServerMessage;
 ConVar g_cvConnectMessage; 
 ConVar g_cvDisconnectMessage; 
 ConVar g_cvMapChangeMessage; 
@@ -75,6 +78,7 @@ public void OnPluginStart()
     g_cvDiscordToServer = CreateConVar("discrelay_discordtoserver", "1", "Enables messages sent in discord to be forwarded to server (discrelay_discordtoserver and discrelay_discordbottoken need to be set)");
     g_cvServerToDiscordAvatars = CreateConVar("discrelay_servertodiscordavatars", "1", "Changes webhook avatar to clients steam avatar (discrelay_servertodiscord needs to set to 1, and steamapi key needs to be set)");
 
+    g_cvServerMessage = CreateConVar("discrelay_servermessage", "1", "Prints server say commands to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvConnectMessage = CreateConVar("discrelay_connectmessage", "1", "relays client connection to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvDisconnectMessage = CreateConVar("discrelay_disconnectmessage", "1", "relays client disconnection messages to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvMapChangeMessage = CreateConVar("discrelay_mapchangemessage", "1", "relays map changes to discord (discrelay_servertodiscord needs to set to 1)");
@@ -85,20 +89,8 @@ public void OnPluginStart()
     g_cvmsg_varcol = CreateConVar("discrelay_msg_varcol", "{default}", "variable color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
     AutoExecConfig(true, "discordrelay");
 
-    //I'm not sure I like how I do this here
-    g_cvSteamApiKey.AddChangeHook(OnSteamApiKeyChanged);
-    g_cvDiscordBotToken.AddChangeHook(OnDiscordTokenChanged);
-    g_cvDiscordWebhook.AddChangeHook(OnWebhookChanged);
-
-    g_cvDiscordServerId.AddChangeHook(OnDiscordServerIdChanged);
-    g_cvChannelId.AddChangeHook(OnDiscordChannelIdChanged);
-
-    g_cvmsg_textcol.AddChangeHook(OnTextColChange);
-    g_cvmsg_varcol.AddChangeHook(OnVarColChange);
-
     
     GetConVarString(g_cvSteamApiKey, g_sSteamApiKey, sizeof(g_sSteamApiKey));
-    GetConVarString(g_cvDiscordBotToken, g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
     GetConVarString(g_cvDiscordWebhook, g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
 
     GetConVarString(g_cvDiscordServerId, g_sDiscordServerId, sizeof(g_sDiscordServerId));
@@ -107,37 +99,43 @@ public void OnPluginStart()
     GetConVarString(g_cvmsg_textcol, g_msg_textcol, sizeof(g_msg_textcol));
     GetConVarString(g_cvmsg_varcol, g_msg_varcol, sizeof(g_msg_varcol));
 
+    g_cvSteamApiKey.AddChangeHook(OnDiscordRelayCvarChanged);
+    g_cvDiscordBotToken.AddChangeHook(OnDiscordRelayCvarChanged);
+    g_cvDiscordWebhook.AddChangeHook(OnDiscordRelayCvarChanged);
+
+    g_cvDiscordServerId.AddChangeHook(OnDiscordRelayCvarChanged);
+    g_cvChannelId.AddChangeHook(OnDiscordRelayCvarChanged);
+
+    g_cvmsg_textcol.AddChangeHook(OnDiscordRelayCvarChanged);
+    g_cvmsg_varcol.AddChangeHook(OnDiscordRelayCvarChanged);
+
+
     if(g_cvDiscordToServer.BoolValue) {
-        CreateTimer(5.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
+        CreateTimer(10.0, Timer_CreateBot);
     }
 }
 
-public void OnSteamApiKeyChanged(ConVar convar, char[] oldValue, char[] newValue)
+public Action Timer_CreateBot(Handle timer)
+{
+    GetConVarString(g_cvDiscordBotToken, g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
+    if(!StrEqual(g_sDiscordBotToken, "")){
+        g_dBot = new DiscordBot(g_sDiscordBotToken);
+        CreateTimer(5.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
+    }
+    else{
+        PrintToChatAll("Null discord bot token, retying");
+        CreateTimer(10.0, Timer_CreateBot);
+    }
+}
+
+public void OnDiscordRelayCvarChanged(ConVar convar, char[] oldValue, char[] newValue)
 {
     g_cvSteamApiKey.GetString(g_sSteamApiKey, sizeof(g_sSteamApiKey));
-}
-public void OnDiscordTokenChanged(ConVar convar, char[] oldValue, char[] newValue)
-{
     g_cvDiscordBotToken.GetString(g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
-}
-public void OnWebhookChanged(ConVar convar, char[] oldValue, char[] newValue)
-{
     g_cvDiscordWebhook.GetString(g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
-}
-public void OnDiscordServerIdChanged(ConVar convar, char[] oldValue, char[] newValue)
-{
     g_cvDiscordServerId.GetString(g_sDiscordServerId, sizeof(g_sDiscordServerId));
-}
-public void OnDiscordChannelIdChanged(ConVar convar, char[] oldValue, char[] newValue)
-{
     g_cvChannelId.GetString(g_sChannelId, sizeof(g_sChannelId));
-}
-public void OnTextColChange(ConVar convar, char[] oldValue, char[] newValue)
-{   
     g_cvmsg_textcol.GetString(g_msg_textcol, sizeof(g_msg_textcol));
-}
-public void OnVarColChange(ConVar convar, char[] oldValue, char[] newValue)
-{
     g_cvmsg_varcol.GetString(g_msg_varcol, sizeof(g_msg_varcol));
 }
 
@@ -160,12 +158,20 @@ public void OnClientPutInServer(int client)
 }
 
 public void OnMapStart()
-{
+{   
+    if(maptimer)
+        return;
+    maptimer = true;
+    CreateTimer(5.0, mapstarttimer);
     char buffer[64];
     GetCurrentMap(buffer, sizeof(buffer));
     PrintToDiscordMapChange(buffer, YELLOW);
 }
 
+public Action mapstarttimer(Handle timer)
+{
+    maptimer = false;
+}
 
 public void OnClientDisconnect(int client)
 {
@@ -179,7 +185,7 @@ public void OnClientDisconnect(int client)
 public void OnClientSayCommand_Post(int client, const char[] command, const char[] sArgs)
 {
     if(g_cvHideExclamMessage.BoolValue) {
-        if(!strncmp(sArgs, "!", 1)) { 
+        if(!strncmp(sArgs, "!", 1) || !strncmp(sArgs, "/", 1)) { 
             return;
         }
     }
@@ -215,11 +221,23 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     
     char steamid[65];
     char playerName[512];
+    char embedMsg[64];
     GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
     Format(playerName, sizeof(playerName), "[%N](http://www.steamcommunity.com/profiles/%s)", client, steamid);
-    
+
     Embed.AddField("", playerName, true);
-    Embed.AddField("", msg, true);
+    if(StrEqual(msg, "connected"))
+    {
+        char clientCountry[46];
+        char clientIP[32];  
+        GetClientIP(client, clientIP, sizeof(clientIP));
+        GeoipCountry(clientIP, clientCountry, sizeof(clientCountry));
+        Format(embedMsg, sizeof(embedMsg), "%s from %s", msg, clientCountry);
+        Embed.AddField("", embedMsg, true);
+    }
+    else{
+        Embed.AddField("", msg, true);
+    }
     
     hook.Embed(Embed);
 
@@ -239,6 +257,8 @@ public void PrintToDiscordSay(int client, const char[] msg, any ...)
 
     if(!IsValidClient(client))
     {
+        if(!g_cvServerMessage.BoolValue)
+            return;
         hook.SetContent(msg);
         //we will just assume that if it isn't a valid client then it must be the server
         hook.SetUsername("Server");
@@ -291,8 +311,6 @@ public void PrintToDiscordMapChange(const char[] map, const char[] color)
 
 public Action Timer_GetGuildList(Handle timer)
 {
-
-    g_dBot = new DiscordBot(g_sDiscordBotToken);
     ParseGuilds();
 }
 
