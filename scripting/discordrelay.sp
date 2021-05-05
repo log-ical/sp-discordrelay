@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.4.0"
+#define PLUGIN_VERSION      "0.5.0"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -123,7 +123,7 @@ public Action Timer_CreateBot(Handle timer)
         CreateTimer(5.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
     }
     else{
-        PrintToChatAll("Null discord bot token, retying");
+        //temp fix for bot being created with token that doesn't exist yet
         CreateTimer(10.0, Timer_CreateBot);
     }
 }
@@ -190,6 +190,61 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
         }
     }
     PrintToDiscordSay(client, sArgs);
+}
+
+public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reason)
+{
+    DiscordWebHook hook = new DiscordWebHook(g_sDiscordWebhook);
+    hook.SlackMode = true;
+
+    hook.SetAvatar(""); //TODO add a cvar so people can include their own. 
+    
+    hook.SetUsername("Player Banned");
+    
+    MessageEmbed Embed = new MessageEmbed();
+    
+    Embed.SetColor("#e5e5e5");
+    
+    char bsteamid[65];
+    char bplayerName[512];
+    GetClientAuthId(target, AuthId_SteamID64, bsteamid, sizeof(bsteamid));
+    Format(bplayerName, sizeof(bplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", target, bsteamid);
+    //Banned Player Link Embed
+
+
+    char asteamid[65];
+    char aplayerName[512];
+    if(!IsValidClient(admin))
+    {
+        Format(aplayerName, sizeof(aplayerName), "Server");
+    }
+    else{
+    GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
+    Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
+    //Admin Link Embed
+    }
+
+    char banMsg[512];
+    Format(banMsg, sizeof(banMsg), "%s has been banned by %s", bplayerName, aplayerName);
+    Embed.AddField("", banMsg, false);
+
+
+    Embed.AddField("Reason: ", reason, true);
+    char sTime[16];
+    IntToString(time, sTime, sizeof(sTime));
+    Embed.AddField("Length: ", sTime, true);
+
+    char hostname[64];
+    GetHostName(hostname, sizeof(hostname));
+    Embed.SetFooter(hostname);
+    Embed.SetFooterIcon("");
+
+    Embed.SetTitle("SourceBans");
+    
+    hook.Embed(Embed);
+
+    hook.Send();
+    delete hook;
 }
 
 public void PrintToDiscord(int client, const char[] color, const char[] msg, any ...)
@@ -422,3 +477,17 @@ stock bool IsValidClient(int client)
 
     return IsClientInGame(client);
 }
+
+void GetHostName(char[] str, int size)
+{
+    static Handle hHostName;
+    
+    if(hHostName == INVALID_HANDLE)
+    {
+        if( (hHostName = FindConVar("hostname")) == INVALID_HANDLE)
+        {
+            return;
+        }
+    }
+    GetConVarString(hHostName, str, size);
+}  
