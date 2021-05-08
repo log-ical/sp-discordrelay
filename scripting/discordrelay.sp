@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.4.0"
+#define PLUGIN_VERSION      "0.6.0"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -46,13 +46,14 @@ bool maptimer = false;
 ConVar g_cvmsg_textcol; char g_msg_textcol[32];
 ConVar g_cvmsg_varcol; char g_msg_varcol[32];
 
-
 ConVar g_cvSteamApiKey; char g_sSteamApiKey[128];
 ConVar g_cvDiscordBotToken; char g_sDiscordBotToken[128];
 ConVar g_cvDiscordWebhook; char g_sDiscordWebhook[256];
 
 ConVar g_cvDiscordServerId; char g_sDiscordServerId[64];
 ConVar g_cvChannelId; char g_sChannelId[64];
+
+ConVar g_cvSBPPAvatar; char g_sSBPPAvatar[64];
 
 ConVar g_cvServerToDiscord; //requires discord bot key
 ConVar g_cvDiscordToServer; //requires discord webhook
@@ -64,6 +65,23 @@ ConVar g_cvDisconnectMessage;
 ConVar g_cvMapChangeMessage; 
 ConVar g_cvMessage; 
 ConVar g_cvHideExclamMessage; 
+
+ConVar g_cvPrintSBPPBans;
+ConVar g_cvPrintSBPPComms;
+
+char lCommbanTypes[][] = {
+    "",
+    "muted",
+    "gagged",
+    "silenced"
+};
+
+char CommbanTypes[][] = {
+    "",
+    "Muted",
+    "Gagged",
+    "Silenced"
+};
 
 public void OnPluginStart()
 {
@@ -87,6 +105,11 @@ public void OnPluginStart()
 
     g_cvmsg_textcol = CreateConVar("discrelay_msg_textcol", "{default}", "text color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
     g_cvmsg_varcol = CreateConVar("discrelay_msg_varcol", "{default}", "variable color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
+    
+    g_cvPrintSBPPBans = CreateConVar("discrelay_printsbppbans", "0", "Prints bans to channel that webhook points to, sbpp must be installed for this to function");
+    g_cvPrintSBPPComms = CreateConVar("discrelay_printsbppcomms", "0", "Prints comm bans to channel that webhook pints to, sbpp must be installed for this to function");
+    
+    g_cvSBPPAvatar = CreateConVar("discrelay_sbppavatar", "", "Image url the webhook will use for profile avatar for sourcebans++ functions, leave blank for default discord avatar");
     AutoExecConfig(true, "discordrelay");
 
     
@@ -99,6 +122,8 @@ public void OnPluginStart()
     GetConVarString(g_cvmsg_textcol, g_msg_textcol, sizeof(g_msg_textcol));
     GetConVarString(g_cvmsg_varcol, g_msg_varcol, sizeof(g_msg_varcol));
 
+    GetConVarString(g_cvSBPPAvatar, g_sSBPPAvatar, sizeof(g_sSBPPAvatar));
+
     g_cvSteamApiKey.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvDiscordBotToken.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvDiscordWebhook.AddChangeHook(OnDiscordRelayCvarChanged);
@@ -109,22 +134,24 @@ public void OnPluginStart()
     g_cvmsg_textcol.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvmsg_varcol.AddChangeHook(OnDiscordRelayCvarChanged);
 
+    g_cvSBPPAvatar.AddChangeHook(OnDiscordRelayCvarChanged);
 
     if(g_cvDiscordToServer.BoolValue) {
-        CreateTimer(10.0, Timer_CreateBot);
+        CreateTimer(5.0, Timer_CreateBot);
     }
 }
+
 
 public Action Timer_CreateBot(Handle timer)
 {
     GetConVarString(g_cvDiscordBotToken, g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
-    if(!StrEqual(g_sDiscordBotToken, "")){
+    if(g_sDiscordBotToken[0]){
         g_dBot = new DiscordBot(g_sDiscordBotToken);
         CreateTimer(5.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
     }
     else{
-        PrintToChatAll("Null discord bot token, retying");
-        CreateTimer(10.0, Timer_CreateBot);
+        //temp fix for bot being created with token that doesn't exist yet
+        CreateTimer(5.0, Timer_CreateBot);
     }
 }
 
@@ -137,6 +164,7 @@ public void OnDiscordRelayCvarChanged(ConVar convar, char[] oldValue, char[] new
     g_cvChannelId.GetString(g_sChannelId, sizeof(g_sChannelId));
     g_cvmsg_textcol.GetString(g_msg_textcol, sizeof(g_msg_textcol));
     g_cvmsg_varcol.GetString(g_msg_varcol, sizeof(g_msg_varcol));
+    g_cvSBPPAvatar.GetString(g_sSBPPAvatar, sizeof(g_sSBPPAvatar));
 }
 
 public void OnClientPutInServer(int client)
@@ -189,8 +217,137 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
             return;
         }
     }
-    PrintToDiscordSay(client, sArgs);
+    char buffer[128];
+    //this might be unsafe
+    //max amount of char in message is 127 so this should be fine
+    strcopy(buffer, sizeof(buffer), sArgs);
+    for(int i=0; i< sizeof(buffer) ; i++)
+    {
+        if(StrContains(buffer, "@", false))
+        {
+            ReplaceString(buffer, sizeof(buffer), "@", "＠");
+        }
+    }
+    PrintToDiscordSay(client, buffer);
 }
+
+public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reason)
+{
+    if(!g_cvPrintSBPPBans.BoolValue)
+        return;
+    DiscordWebHook hook = new DiscordWebHook(g_sDiscordWebhook);
+    hook.SlackMode = true;
+
+    hook.SetAvatar(g_sSBPPAvatar);
+    
+    hook.SetUsername("Player Banned");
+    
+    MessageEmbed Embed = new MessageEmbed();
+    
+    Embed.SetColor("#e5e5e5");
+    
+    char bsteamid[65];
+    char bplayerName[512];
+    GetClientAuthId(target, AuthId_SteamID64, bsteamid, sizeof(bsteamid));
+    Format(bplayerName, sizeof(bplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", target, bsteamid);
+    //Banned Player Link Embed
+
+
+    char asteamid[65];
+    char aplayerName[512];
+    if(!IsValidClient(admin))
+    {
+        Format(aplayerName, sizeof(aplayerName), "Server");
+    }
+    else{
+    GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
+    Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
+    //Admin Link Embed
+    }
+
+    char banMsg[512];
+    Format(banMsg, sizeof(banMsg), "%s has been banned by %s", bplayerName, aplayerName);
+    Embed.AddField("", banMsg, false);
+
+
+    Embed.AddField("Reason: ", reason, true);
+    char sTime[16];
+    IntToString(time, sTime, sizeof(sTime));
+    Embed.AddField("Length: ", sTime, true);
+
+    char hostname[64];
+    GetHostName(hostname, sizeof(hostname));
+    Embed.SetFooter(hostname);
+    Embed.SetFooterIcon(g_sSBPPAvatar);
+
+    Embed.SetTitle("SourceBans");
+    
+    hook.Embed(Embed);
+
+    hook.Send();
+    delete hook;
+}
+public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, char[] reason)
+{
+    if(!g_cvPrintSBPPComms.BoolValue)
+        return;
+    if(type>3)
+        return;
+    DiscordWebHook hook = new DiscordWebHook(g_sDiscordWebhook);
+    hook.SlackMode = true;
+
+    hook.SetAvatar(g_sSBPPAvatar);
+    
+    char usrname[32];
+    Format(usrname, sizeof(usrname), "Player %s", CommbanTypes[type]);
+    hook.SetUsername(usrname);
+    
+    MessageEmbed Embed = new MessageEmbed();
+    
+    Embed.SetColor("#e5e5e5");
+    
+    char bsteamid[65];
+    char bplayerName[512];
+    GetClientAuthId(target, AuthId_SteamID64, bsteamid, sizeof(bsteamid));
+    Format(bplayerName, sizeof(bplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", target, bsteamid);
+    //Banned Player Link Embed
+
+
+    char asteamid[65];
+    char aplayerName[512];
+    if(!IsValidClient(admin))
+    {
+        Format(aplayerName, sizeof(aplayerName), "Server");
+    }
+    else{
+    GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
+    Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
+    //Admin Link Embed
+    }
+
+    char banMsg[512];
+    Format(banMsg, sizeof(banMsg), "%s has been %s by %s", bplayerName, lCommbanTypes[type], aplayerName);
+    Embed.AddField("", banMsg, false);
+
+
+    Embed.AddField("Reason: ", reason, true);
+    char sTime[16];
+    IntToString(time, sTime, sizeof(sTime));
+    Embed.AddField("Length: ", sTime, true);
+
+    char hostname[64];
+    GetHostName(hostname, sizeof(hostname));
+    Embed.SetFooter(hostname);
+    Embed.SetFooterIcon(g_sSBPPAvatar);
+
+    Embed.SetTitle("SourceComms");
+    
+    hook.Embed(Embed);
+
+    hook.Send();
+    delete hook;
+}
+
 
 public void PrintToDiscord(int client, const char[] color, const char[] msg, any ...)
 {
@@ -422,3 +579,17 @@ stock bool IsValidClient(int client)
 
     return IsClientInGame(client);
 }
+
+void GetHostName(char[] str, int size)
+{
+    static Handle hHostName;
+    
+    if(hHostName == INVALID_HANDLE)
+    {
+        if( (hHostName = FindConVar("hostname")) == INVALID_HANDLE)
+        {
+            return;
+        }
+    }
+    GetConVarString(hHostName, str, size);
+}  

@@ -49,3 +49,9 @@ Hides any message that begins with !, discrelay_message needs to be enabled for 
 								g_msg_varcol, discriminator, g_msg_textcol,
 								message);
 discorduser, discriminator, and message are discord things, but g_msg_textcol and g_msg_varcol refer to the colors used for the message that will be sent to the server when doing discord -> server. The plugin uses morecolors.inc to supply the colors, so when setting the cvar make sure to set it like {red} for example. Depending on the game you are using different options to set the color can be chosen such as using hex (more information here https://forums.alliedmods.net/showthread.php?t=247770). 
+### discrelay_printsbppbans
+If set to 1, it will print bans, if you have sbpp installed on the server, to the location of where the discrelay_discordwebhook is set.
+### discrelay_printsbppcomms
+If set to 1, it will print gags, mutes, and silences, if you have sbpp installed on the server, to the location of where the discrelay_discordwebhook is set.
+### discrelay_sbppavatar
+This must be a URL to an image, this will be the image used for the webhooks profile picutre and footer icon for SBPP related functions.
