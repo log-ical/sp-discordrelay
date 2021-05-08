@@ -42,7 +42,7 @@ Enable to allow map changes to be sent to discord through the webhook.
 ### discrelay_message
 Enable to allow client messages in the server to be sent to discord though the webhook. This is any message thats not a command, only exception is any ! command which can be hidden by enabling discrelay_hideexclammessage.
 ### discrelay_hideexclammessage
-Hides any message that begins with !, discrelay_message needs to be enabled for this to work.
+Hides any message that begins with ! or /, discrelay_message needs to be enabled for this to work.
 ### discrelay_msg_textcol & discrelay_msg_varcol
 	CPrintToChatAll("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
 								g_msg_varcol, discorduser, g_msg_textcol,
