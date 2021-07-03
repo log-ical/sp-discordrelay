@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.6.0"
+#define PLUGIN_VERSION      "0.6.1"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -83,6 +83,13 @@ char CommbanTypes[][] = {
     "Silenced"
 };
 
+char sCommbanTypes[][] = {
+    "",
+    "Mute",
+    "Gag",
+    "Silence"
+};
+
 public void OnPluginStart()
 {
     g_cvSteamApiKey = CreateConVar("discrelay_steamapikey", "", "Your Steam API key (needed for discrelay_servertodiscordavatars)");
@@ -136,11 +143,11 @@ public void OnPluginStart()
 
     g_cvSBPPAvatar.AddChangeHook(OnDiscordRelayCvarChanged);
 
+
     if(g_cvDiscordToServer.BoolValue) {
         CreateTimer(5.0, Timer_CreateBot);
     }
 }
-
 
 public Action Timer_CreateBot(Handle timer)
 {
@@ -187,6 +194,9 @@ public void OnClientPutInServer(int client)
 
 public void OnMapStart()
 {   
+    //prevents failed webhook error on server startup
+    if(!g_sDiscordWebhook[0])
+        return;
     if(maptimer)
         return;
     maptimer = true;
@@ -217,18 +227,14 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
             return;
         }
     }
-    char buffer[128];
+    // command == say or say_team
     //this might be unsafe
     //max amount of char in message is 127 so this should be fine
+    char buffer[128];
     strcopy(buffer, sizeof(buffer), sArgs);
-    for(int i=0; i< sizeof(buffer) ; i++)
-    {
-        if(StrContains(buffer, "@", false))
-        {
-            ReplaceString(buffer, sizeof(buffer), "@", "＠");
-        }
-    }
-    PrintToDiscordSay(client, buffer);
+    ReplaceString(buffer, sizeof(buffer), "@", "＠");
+
+    PrintToDiscordSay(client, command, buffer);
 }
 
 public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reason)
@@ -244,7 +250,7 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     
     MessageEmbed Embed = new MessageEmbed();
     
-    Embed.SetColor("#e5e5e5");
+    Embed.SetColor("#FF0000");
     
     char bsteamid[65];
     char bplayerName[512];
@@ -255,14 +261,14 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
 
     char asteamid[65];
     char aplayerName[512];
-    if(!IsValidClient(admin))
+    if(!IsValidClient(admin)) //if client index is <1 or bot
     {
-        Format(aplayerName, sizeof(aplayerName), "Server");
+        Format(aplayerName, sizeof(aplayerName), "CONSOLE");
     }
     else{
-    GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
-    Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
-    //Admin Link Embed
+        GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
+        Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
+        //Admin Link Embed
     }
 
     char banMsg[512];
@@ -274,7 +280,12 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     char sTime[16];
     IntToString(time, sTime, sizeof(sTime));
     Embed.AddField("Length: ", sTime, true);
-
+    char CurrentMap[64];
+    GetCurrentMap(CurrentMap, sizeof(CurrentMap));
+    Embed.AddField("Map: ", CurrentMap, true);
+    char sRealTime[32];
+    FormatTime(sRealTime, sizeof(sRealTime), "%m-%d-%Y %I:%M:%S", GetTime());  
+    Embed.AddField("Time: ", sRealTime, true);
     char hostname[64];
     GetHostName(hostname, sizeof(hostname));
     Embed.SetFooter(hostname);
@@ -304,7 +315,7 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     
     MessageEmbed Embed = new MessageEmbed();
     
-    Embed.SetColor("#e5e5e5");
+    Embed.SetColor("#6495ED");
     
     char bsteamid[65];
     char bplayerName[512];
@@ -317,7 +328,7 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     char aplayerName[512];
     if(!IsValidClient(admin))
     {
-        Format(aplayerName, sizeof(aplayerName), "Server");
+        Format(aplayerName, sizeof(aplayerName), "CONSOLE");
     }
     else{
     GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
@@ -334,6 +345,14 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     char sTime[16];
     IntToString(time, sTime, sizeof(sTime));
     Embed.AddField("Length: ", sTime, true);
+    Embed.AddField("Type: ", sCommbanTypes[type], true);
+    char CurrentMap[64];
+    GetCurrentMap(CurrentMap, sizeof(CurrentMap));
+    Embed.AddField("Map: ", CurrentMap, true);
+    char sRealTime[32];
+    FormatTime(sRealTime, sizeof(sRealTime), "%m-%d-%Y %I:%M:%S", GetTime()); 
+    Embed.AddField("Time: ", sRealTime, true);
+
 
     char hostname[64];
     GetHostName(hostname, sizeof(hostname));
@@ -358,7 +377,8 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     
     char clientName[32];
     GetClientName(client, clientName, 32);
-    
+
+
     DiscordWebHook hook = new DiscordWebHook(g_sDiscordWebhook);
     
     hook.SlackMode = true;
@@ -368,9 +388,7 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     
     char steamid1[64];
     GetClientAuthId(client, AuthId_Steam2, steamid1, sizeof(steamid1));
-    char buffer[128];
-    Format(buffer, 128, "%s [%s]", clientName, steamid1);
-    hook.SetUsername(buffer);
+
     
     MessageEmbed Embed = new MessageEmbed();
     
@@ -385,7 +403,7 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     Embed.AddField("", playerName, true);
     if(StrEqual(msg, "connected"))
     {
-        char clientCountry[46];
+        char clientCountry[64];
         char clientIP[32];  
         GetClientIP(client, clientIP, sizeof(clientIP));
         GeoipCountry(clientIP, clientCountry, sizeof(clientCountry));
@@ -403,7 +421,7 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
 
 }
 
-public void PrintToDiscordSay(int client, const char[] msg, any ...)
+public void PrintToDiscordSay(int client, const char[] command, const char[] msg, any ...)
 {
     if(!g_cvServerToDiscord.BoolValue)
         return;
@@ -423,19 +441,44 @@ public void PrintToDiscordSay(int client, const char[] msg, any ...)
         return;
     }
     
+
+
     char clientName[32];
     GetClientName(client, clientName, 32);
 
     if(g_cvServerToDiscordAvatars.BoolValue)
         hook.SetAvatar(playersdata[client].avatarurl);
-
-    hook.SetContent(msg);
+    char message[128];
+    if(StrEqual(command, "say"))
+        Format(message, 128, "%s", msg);
+    else //this else statement is kinda useless but /shrug
+        Format(message, 128, "(TEAM) %s", msg);
+    hook.SetContent(message);
 
     char steamid[64];
     GetClientAuthId(client, AuthId_Steam2, steamid, sizeof(steamid));
+    //char buffer[128];
+    //Format(buffer, 128, "%s [%s]", clientName, steamid);
+    //hook.SetUsername(buffer);
+
+    int team = GetClientTeam(client);
     char buffer[128];
-    Format(buffer, 128, "%s [%s]", clientName, steamid);
-    hook.SetUsername(buffer);
+    if(team == CS_TEAM_T)
+    {
+
+        Format(buffer, 128, "[T] %s [%s]", clientName, steamid);
+        hook.SetUsername(buffer);
+    }
+    else if(team == CS_TEAM_CT)
+    {
+        Format(buffer, 128, "[CT] %s [%s]", clientName, steamid);
+        hook.SetUsername(buffer);
+    }
+    else //if not T or CT
+    {
+        Format(buffer, 128, "%s [%s]", clientName, steamid);
+        hook.SetUsername(buffer);
+    }
 
     hook.Send();
     delete hook;
