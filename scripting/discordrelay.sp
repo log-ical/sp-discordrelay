@@ -5,7 +5,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.6.0"
+#define PLUGIN_VERSION      "0.6.2"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -81,6 +81,13 @@ char CommbanTypes[][] = {
     "Muted",
     "Gagged",
     "Silenced"
+};
+
+char sCommbanTypes[][] = {
+    "",
+    "Mute",
+    "Gag",
+    "Silence"
 };
 
 public void OnPluginStart()
@@ -187,6 +194,9 @@ public void OnClientPutInServer(int client)
 
 public void OnMapStart()
 {   
+    //prevents failed webhook error on server startup
+    if(!g_sDiscordWebhook[0])
+        return;
     if(maptimer)
         return;
     maptimer = true;
@@ -244,7 +254,7 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     
     MessageEmbed Embed = new MessageEmbed();
     
-    Embed.SetColor("#e5e5e5");
+    Embed.SetColor("#FF0000");
     
     char bsteamid[65];
     char bplayerName[512];
@@ -257,7 +267,7 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     char aplayerName[512];
     if(!IsValidClient(admin))
     {
-        Format(aplayerName, sizeof(aplayerName), "Server");
+        Format(aplayerName, sizeof(aplayerName), "CONSOLE");
     }
     else{
     GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
@@ -274,6 +284,13 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     char sTime[16];
     IntToString(time, sTime, sizeof(sTime));
     Embed.AddField("Length: ", sTime, true);
+
+    char CurrentMap[64];
+    GetCurrentMap(CurrentMap, sizeof(CurrentMap));
+    Embed.AddField("Map: ", CurrentMap, true);
+    char sRealTime[32];
+    FormatTime(sRealTime, sizeof(sRealTime), "%m-%d-%Y %I:%M:%S", GetTime());  
+    Embed.AddField("Time: ", sRealTime, true);
 
     char hostname[64];
     GetHostName(hostname, sizeof(hostname));
@@ -304,7 +321,7 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     
     MessageEmbed Embed = new MessageEmbed();
     
-    Embed.SetColor("#e5e5e5");
+    Embed.SetColor("#6495ED");
     
     char bsteamid[65];
     char bplayerName[512];
@@ -317,7 +334,7 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     char aplayerName[512];
     if(!IsValidClient(admin))
     {
-        Format(aplayerName, sizeof(aplayerName), "Server");
+        Format(aplayerName, sizeof(aplayerName), "CONSOLE");
     }
     else{
     GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
@@ -334,6 +351,14 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     char sTime[16];
     IntToString(time, sTime, sizeof(sTime));
     Embed.AddField("Length: ", sTime, true);
+
+    Embed.AddField("Type: ", sCommbanTypes[type], true);
+    char CurrentMap[64];
+    GetCurrentMap(CurrentMap, sizeof(CurrentMap));
+    Embed.AddField("Map: ", CurrentMap, true);
+    char sRealTime[32];
+    FormatTime(sRealTime, sizeof(sRealTime), "%m-%d-%Y %I:%M:%S", GetTime()); 
+    Embed.AddField("Time: ", sRealTime, true);
 
     char hostname[64];
     GetHostName(hostname, sizeof(hostname));
@@ -385,7 +410,7 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     Embed.AddField("", playerName, true);
     if(StrEqual(msg, "connected"))
     {
-        char clientCountry[46];
+        char clientCountry[64];
         char clientIP[32];  
         GetClientIP(client, clientIP, sizeof(clientIP));
         GeoipCountry(clientIP, clientCountry, sizeof(clientCountry));
