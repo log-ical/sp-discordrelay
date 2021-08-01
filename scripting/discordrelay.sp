@@ -1,11 +1,12 @@
 #pragma semicolon 1
 
+//Just for debuging discord->server messages
 //#define DEBUG 1
 
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.6.2"
+#define PLUGIN_VERSION      "0.6.6"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -144,7 +145,7 @@ public void OnPluginStart()
     g_cvSBPPAvatar.AddChangeHook(OnDiscordRelayCvarChanged);
 
     if(g_cvDiscordToServer.BoolValue) {
-        CreateTimer(5.0, Timer_CreateBot);
+        CreateTimer(1.0, Timer_CreateBot);
     }
 }
 
@@ -153,12 +154,22 @@ public Action Timer_CreateBot(Handle timer)
 {
     GetConVarString(g_cvDiscordBotToken, g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
     if(g_sDiscordBotToken[0]){
+        if(g_dBot) {
+#if defined DEBUG
+        LogError("Bot handle already exists returning");
+#endif
+            return;
+        }
         g_dBot = new DiscordBot(g_sDiscordBotToken);
-        CreateTimer(5.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
+        CreateTimer(1.0, Timer_GetGuildList, _, TIMER_FLAG_NO_MAPCHANGE);
+#if defined DEBUG
+        LogError("Creating bot with TOKEN = '%s'.\nCreating GetGuildList Timer", g_sDiscordBotToken);
+#endif
     }
     else{
         //temp fix for bot being created with token that doesn't exist yet
         CreateTimer(5.0, Timer_CreateBot);
+        LogError("Failed to create bot with Bot Token : %s", g_sDiscordBotToken);
     }
 }
 
@@ -204,6 +215,15 @@ public void OnMapStart()
     char buffer[64];
     GetCurrentMap(buffer, sizeof(buffer));
     PrintToDiscordMapChange(buffer, YELLOW);
+    if(g_cvDiscordToServer.BoolValue) {
+        CreateTimer(2.0, Timer_CreateBot);
+    }
+}
+
+public void OnMapEnd()
+{
+    //Deleteing to refresh connection on map start
+    delete g_dBot;
 }
 
 public Action mapstarttimer(Handle timer)
@@ -494,16 +514,25 @@ public void PrintToDiscordMapChange(const char[] map, const char[] color)
 public Action Timer_GetGuildList(Handle timer)
 {
     ParseGuilds();
+#if defined DEBUG
+    LogError("Calling ParseGuilds Function");
+#endif
 }
 
 stock void ParseGuilds()
 {	
     g_dBot.GetGuilds(GuildList);
+#if defined DEBUG
+    LogError("Calling GetGuilds on g_dBot handle");
+#endif
 }
 
 public void GuildList(DiscordBot bot, char[] id, char[] name, char[] icon, bool owner, int permissions, any data)
 {
     g_dBot.GetGuildChannels(id, ChannelList, INVALID_FUNCTION);
+#if defined DEBUG
+    LogError("Calling GetGuildChannels on g_dBot handle");
+#endif
 }
 
 public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, any data)
@@ -512,27 +541,39 @@ public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, 
 	{
 		if(g_dBot == null || chl == null)
 		{
+			LogError("Bot or Channel invalid");
 			return;
 		}
 		if(g_dBot.IsListeningToChannel(chl))
 		{
+#if defined DEBUG
+            LogError("Returning ChannelList function. Bot already listening to channel");
+#endif
 			return;
 		}
-		char id[20], name[32];
+		char id[20];
 		chl.GetID(id, sizeof(id));
-		chl.GetName(name, sizeof(name));
 		if(StrEqual(id, g_sChannelId))
         {
 			g_dBot.StartListeningToChannel(chl, OnDiscordMessageSent);
+#if defined DEBUG
+            LogError("Calling StartListeningToChannel on g_dBot handle");
+#endif
 		}
 	}
 }
 
 public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMessage discordmessage)
 {
+#if defined DEBUG
+    LogError("Discord message sent");
+#endif
 	DiscordUser author = discordmessage.GetAuthor();
 	if(author.IsBot()) 
 	{
+#if defined DEBUG
+        LogError("Message from bot, returning");
+#endif
 		delete author;
 		return;
 	}
@@ -548,6 +589,9 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
 															g_msg_varcol, discorduser, g_msg_textcol,
 															g_msg_varcol, discriminator, g_msg_textcol,
 															message);
+#if defined DEBUG
+    LogError("Printing message '%s' from '%s#%s' to server chat", message, discorduser, discriminator);
+#endif
 }
 
 stock void SteamAPIRequest(int client)
