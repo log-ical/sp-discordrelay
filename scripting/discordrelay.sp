@@ -6,7 +6,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.6.6"
+#define PLUGIN_VERSION      "0.6.8"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -251,12 +251,9 @@ public void OnClientSayCommand_Post(int client, const char[] command, const char
     //this might be unsafe
     //max amount of char in message is 127 so this should be fine
     strcopy(buffer, sizeof(buffer), sArgs);
-    for(int i=0; i< sizeof(buffer) ; i++)
+    if(StrContains(buffer, "@", false) != -1)
     {
-        if(StrContains(buffer, "@", false))
-        {
-            ReplaceString(buffer, sizeof(buffer), "@", "＠");
-        }
+        ReplaceString(buffer, sizeof(buffer), "@", "＠");
     }
     PrintToDiscordSay(client, buffer);
 }
