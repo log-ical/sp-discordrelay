@@ -6,7 +6,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.6.8"
+#define PLUGIN_VERSION      "0.7.0"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -50,15 +50,19 @@ ConVar g_cvmsg_varcol; char g_msg_varcol[32];
 ConVar g_cvSteamApiKey; char g_sSteamApiKey[128];
 ConVar g_cvDiscordBotToken; char g_sDiscordBotToken[128];
 ConVar g_cvDiscordWebhook; char g_sDiscordWebhook[256];
+ConVar g_cvRCONWebhook; char g_sRCONWebhook[256];
 
 ConVar g_cvDiscordServerId; char g_sDiscordServerId[64];
 ConVar g_cvChannelId; char g_sChannelId[64];
+ConVar g_cvRCONChannelId; char g_sRCONChannelId[64];
 
 ConVar g_cvSBPPAvatar; char g_sSBPPAvatar[64];
 
 ConVar g_cvServerToDiscord; //requires discord bot key
 ConVar g_cvDiscordToServer; //requires discord webhook
 ConVar g_cvServerToDiscordAvatars; //requires steam api key
+ConVar g_cvRCONDiscordToServer; //requires discord bot key
+ConVar g_cvPrintRCONResponse;
 
 ConVar g_cvServerMessage;
 ConVar g_cvConnectMessage; 
@@ -93,17 +97,25 @@ char sCommbanTypes[][] = {
 
 public void OnPluginStart()
 {
+    // Keys/Tokens
     g_cvSteamApiKey = CreateConVar("discrelay_steamapikey", "", "Your Steam API key (needed for discrelay_servertodiscordavatars)");
     g_cvDiscordBotToken = CreateConVar("discrelay_discordbottoken", "", "Your discord bot key (needed for discrelay_discordtoserver)");
     g_cvDiscordWebhook = CreateConVar("discrelay_discordwebhook", "", "Webhook for discord channel (needed for discrelay_servertodiscord)");
 
+    // IDs
     g_cvDiscordServerId = CreateConVar("discrelay_discordserverid", "", "Discord Server Id, required for discord to server");
     g_cvChannelId = CreateConVar("discrelay_channelid", "", "Channel Id for discord to server (This channel would be the one where the plugin check for messages to send to the server)");
+    g_cvRCONChannelId = CreateConVar("discrelay_rcon_channelid", "", "Channel ID where rcon commands should be sent");
+    g_cvRCONWebhook = CreateConVar("discrelay_rcon_webhook", "", "Webhook for rcon reponses, required for discrelay_rcon_printreponse");
 
+    // Switches
     g_cvServerToDiscord = CreateConVar("discrelay_servertodiscord", "1", "Enables messages sent in the server to be forwarded to discord");
     g_cvDiscordToServer = CreateConVar("discrelay_discordtoserver", "1", "Enables messages sent in discord to be forwarded to server (discrelay_discordtoserver and discrelay_discordbottoken need to be set)");
     g_cvServerToDiscordAvatars = CreateConVar("discrelay_servertodiscordavatars", "1", "Changes webhook avatar to clients steam avatar (discrelay_servertodiscord needs to set to 1, and steamapi key needs to be set)");
+    g_cvRCONDiscordToServer = CreateConVar("discrelay_rcon_enabled", "0", "Enables RCON functionality");
+    g_cvPrintRCONResponse = CreateConVar("discrelay_rcon_printreponse", "1", "Prints reponse from command (discrelay_rcon_webhook required)");
 
+    // Message Switches
     g_cvServerMessage = CreateConVar("discrelay_servermessage", "1", "Prints server say commands to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvConnectMessage = CreateConVar("discrelay_connectmessage", "1", "relays client connection to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvDisconnectMessage = CreateConVar("discrelay_disconnectmessage", "1", "relays client disconnection messages to discord (discrelay_servertodiscord needs to set to 1)");
@@ -111,21 +123,24 @@ public void OnPluginStart()
     g_cvMessage = CreateConVar("discrelay_message", "1", "relays client messages to discord (discrelay_servertodiscord needs to set to 1)");
     g_cvHideExclamMessage = CreateConVar("discrelay_hideexclammessage", "1", "Hides any message that begins with !");
 
+    // Customization
     g_cvmsg_textcol = CreateConVar("discrelay_msg_textcol", "{default}", "text color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
     g_cvmsg_varcol = CreateConVar("discrelay_msg_varcol", "{default}", "variable color of discord to server text (refer to github for support, the ways you can chose colors depends on game)");
     
+    // SBPP Customization
     g_cvPrintSBPPBans = CreateConVar("discrelay_printsbppbans", "0", "Prints bans to channel that webhook points to, sbpp must be installed for this to function");
     g_cvPrintSBPPComms = CreateConVar("discrelay_printsbppcomms", "0", "Prints comm bans to channel that webhook pints to, sbpp must be installed for this to function");
-    
     g_cvSBPPAvatar = CreateConVar("discrelay_sbppavatar", "", "Image url the webhook will use for profile avatar for sourcebans++ functions, leave blank for default discord avatar");
+    
     AutoExecConfig(true, "discordrelay");
 
-    
     GetConVarString(g_cvSteamApiKey, g_sSteamApiKey, sizeof(g_sSteamApiKey));
     GetConVarString(g_cvDiscordWebhook, g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
+    GetConVarString(g_cvRCONWebhook, g_sRCONWebhook, sizeof(g_sRCONWebhook));
 
     GetConVarString(g_cvDiscordServerId, g_sDiscordServerId, sizeof(g_sDiscordServerId));
     GetConVarString(g_cvChannelId, g_sChannelId, sizeof(g_sChannelId));
+    GetConVarString(g_cvRCONChannelId, g_sRCONChannelId, sizeof(g_sRCONChannelId));
 
     GetConVarString(g_cvmsg_textcol, g_msg_textcol, sizeof(g_msg_textcol));
     GetConVarString(g_cvmsg_varcol, g_msg_varcol, sizeof(g_msg_varcol));
@@ -135,16 +150,18 @@ public void OnPluginStart()
     g_cvSteamApiKey.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvDiscordBotToken.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvDiscordWebhook.AddChangeHook(OnDiscordRelayCvarChanged);
+    g_cvRCONWebhook.AddChangeHook(OnDiscordRelayCvarChanged);
 
     g_cvDiscordServerId.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvChannelId.AddChangeHook(OnDiscordRelayCvarChanged);
+    g_cvRCONChannelId.AddChangeHook(OnDiscordRelayCvarChanged);
 
     g_cvmsg_textcol.AddChangeHook(OnDiscordRelayCvarChanged);
     g_cvmsg_varcol.AddChangeHook(OnDiscordRelayCvarChanged);
 
     g_cvSBPPAvatar.AddChangeHook(OnDiscordRelayCvarChanged);
 
-    if(g_cvDiscordToServer.BoolValue) {
+    if(g_cvDiscordToServer.BoolValue || g_cvRCONDiscordToServer.BoolValue) {
         CreateTimer(1.0, Timer_CreateBot);
     }
 }
@@ -156,7 +173,7 @@ public Action Timer_CreateBot(Handle timer)
     if(g_sDiscordBotToken[0]){
         if(g_dBot) {
 #if defined DEBUG
-        LogError("Bot handle already exists returning");
+            LogError("Bot handle already exists returning");
 #endif
             return;
         }
@@ -173,13 +190,16 @@ public Action Timer_CreateBot(Handle timer)
     }
 }
 
+
 public void OnDiscordRelayCvarChanged(ConVar convar, char[] oldValue, char[] newValue)
 {
     g_cvSteamApiKey.GetString(g_sSteamApiKey, sizeof(g_sSteamApiKey));
     g_cvDiscordBotToken.GetString(g_sDiscordBotToken, sizeof(g_sDiscordBotToken));
     g_cvDiscordWebhook.GetString(g_sDiscordWebhook, sizeof(g_sDiscordWebhook));
+    g_cvRCONWebhook.GetString(g_sRCONWebhook, sizeof(g_sRCONWebhook));
     g_cvDiscordServerId.GetString(g_sDiscordServerId, sizeof(g_sDiscordServerId));
     g_cvChannelId.GetString(g_sChannelId, sizeof(g_sChannelId));
+    g_cvRCONChannelId.GetString(g_sRCONChannelId, sizeof(g_sRCONChannelId));
     g_cvmsg_textcol.GetString(g_msg_textcol, sizeof(g_msg_textcol));
     g_cvmsg_varcol.GetString(g_msg_varcol, sizeof(g_msg_varcol));
     g_cvSBPPAvatar.GetString(g_sSBPPAvatar, sizeof(g_sSBPPAvatar));
@@ -212,9 +232,7 @@ public void OnMapStart()
         return;
     maptimer = true;
     CreateTimer(5.0, mapstarttimer);
-    char buffer[64];
-    GetCurrentMap(buffer, sizeof(buffer));
-    PrintToDiscordMapChange(buffer, YELLOW);
+    CreateTimer(4.0, Timer_MapStart);
     if(g_cvDiscordToServer.BoolValue) {
         CreateTimer(2.0, Timer_CreateBot);
     }
@@ -224,6 +242,13 @@ public void OnMapEnd()
 {
     //Deleteing to refresh connection on map start
     delete g_dBot;
+}
+
+public Action Timer_MapStart(Handle timer)
+{
+    char buffer[64];
+    GetCurrentMap(buffer, sizeof(buffer));
+    PrintToDiscordMapChange(buffer, YELLOW);
 }
 
 public Action mapstarttimer(Handle timer)
@@ -500,6 +525,10 @@ public void PrintToDiscordMapChange(const char[] map, const char[] color)
     Embed.SetColor(color);
     
     Embed.AddField("New Map:", map, true);
+
+    char buffer[512];
+    Format(buffer, sizeof(buffer), "%d/%d", GetOnlinePlayers(), GetMaxHumanPlayers());
+    Embed.AddField("Players Online:", buffer, true);
     
     hook.Embed(Embed);
 
@@ -534,30 +563,42 @@ public void GuildList(DiscordBot bot, char[] id, char[] name, char[] icon, bool 
 
 public void ChannelList(DiscordBot bot, const char[] guild, DiscordChannel chl, any data)
 {
-	if(StrEqual(guild, g_sDiscordServerId))
-	{
-		if(g_dBot == null || chl == null)
-		{
-			LogError("Bot or Channel invalid");
-			return;
-		}
-		if(g_dBot.IsListeningToChannel(chl))
-		{
+    if(StrEqual(guild, g_sDiscordServerId))
+    {
+        if(g_dBot == null || chl == null)
+        {
+            LogError("Bot or Channel invalid");
+            return;
+        }
+        if(g_dBot.IsListeningToChannel(chl))
+        {
 #if defined DEBUG
             LogError("Returning ChannelList function. Bot already listening to channel");
 #endif
-			return;
-		}
-		char id[20];
-		chl.GetID(id, sizeof(id));
-		if(StrEqual(id, g_sChannelId))
-        {
-			g_dBot.StartListeningToChannel(chl, OnDiscordMessageSent);
+            return;
+        }
+        char id[20];
+        chl.GetID(id, sizeof(id));
+        if(g_cvDiscordToServer.BoolValue) {
+            if(StrEqual(id, g_sChannelId))
+            {
+                g_dBot.StartListeningToChannel(chl, OnDiscordMessageSent);
 #if defined DEBUG
-            LogError("Calling StartListeningToChannel on g_dBot handle");
+            LogError("Calling StartListeningToChannel on g_dBot handle for message channel");
 #endif
-		}
-	}
+            }
+        }
+        if(g_cvRCONDiscordToServer.BoolValue)
+        {
+            if(StrEqual(id, g_sRCONChannelId))
+            {
+                g_dBot.StartListeningToChannel(chl, OnDiscordMessageSent);
+#if defined DEBUG
+            LogError("Calling StartListeningToChannel on g_dBot handle for RCON channel");
+#endif
+            }
+        }
+    }
 }
 
 public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMessage discordmessage)
@@ -565,30 +606,63 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
 #if defined DEBUG
     LogError("Discord message sent");
 #endif
-	DiscordUser author = discordmessage.GetAuthor();
-	if(author.IsBot()) 
-	{
+    DiscordUser author = discordmessage.GetAuthor();
+    if(author.IsBot()) 
+    {
 #if defined DEBUG
         LogError("Message from bot, returning");
 #endif
-		delete author;
-		return;
-	}
-
-	char message[512];
-	char discorduser[32], discriminator[6];
-	discordmessage.GetContent(message, sizeof(message));
-	author.GetUsername(discorduser, sizeof(discorduser));
-	author.GetDiscriminator(discriminator, sizeof(discriminator));
-	delete author;
-
-	CPrintToChatAll("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
-															g_msg_varcol, discorduser, g_msg_textcol,
-															g_msg_varcol, discriminator, g_msg_textcol,
-															message);
+        delete author;
+        return;
+    }
+    char id[20];
+    chl.GetID(id, sizeof(id));
+        
+    if(StrEqual(id, g_sChannelId))
+    {
+        char message[512];
+        char discorduser[32], discriminator[6];
+        discordmessage.GetContent(message, sizeof(message));
+        author.GetUsername(discorduser, sizeof(discorduser));
+        author.GetDiscriminator(discriminator, sizeof(discriminator));
+        delete author;
+    
+        CPrintToChatAll("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
+        														g_msg_varcol, discorduser, g_msg_textcol,
+        														g_msg_varcol, discriminator, g_msg_textcol,
+        														message);
 #if defined DEBUG
-    LogError("Printing message '%s' from '%s#%s' to server chat", message, discorduser, discriminator);
+        LogError("Printing message '%s' from '%s#%s' to server chat", message, discorduser, discriminator);
 #endif
+    }
+    if(StrEqual(id, g_sRCONChannelId))
+    {
+        char message[512];
+        discordmessage.GetContent(message, sizeof(message));
+
+        if(g_cvPrintRCONResponse.BoolValue)
+        {
+            char Response[2048];
+            char fResponse[2054];
+            /* 
+            May cause issue later? But we would like to have the server reponse if possible...
+
+                Warning: This calls ServerExecute internally and may have issues if
+                certain commands are in the buffer, only use when you really need the response.
+            */
+            ServerCommandEx(Response, sizeof(Response), message);
+
+            //make it look pretty <3
+            Format(fResponse, sizeof(fResponse), "``` %s ```", Response);
+        
+            DiscordWebHook hook = new DiscordWebHook(g_sRCONWebhook);
+            hook.SlackMode = true;
+            hook.SetContent(fResponse);
+            hook.SetUsername("RCON");
+            hook.Send();
+            delete hook;
+        }
+    }
 }
 
 stock void SteamAPIRequest(int client)
@@ -600,6 +674,8 @@ stock void SteamAPIRequest(int client)
     GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
 
     Format(endpoint, sizeof(endpoint), "ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
+
+    //TODO UPDATE HTTPClient is deprecated in new ripext version
     httpClient = new HTTPClient("https://api.steampowered.com/");
 
     httpClient.Get(endpoint, SteamResponse_Callback, client);
@@ -644,6 +720,19 @@ stock bool IsValidClient(int client)
         return false;
 
     return IsClientInGame(client);
+}
+
+stock int GetOnlinePlayers()
+{
+	int count;
+	for(int i = 1; i <= MaxClients; i++)
+	{	
+		if(IsClientConnected(i) && !IsFakeClient(i) && !IsClientSourceTV(i))
+		{
+			count++;
+		}
+	}
+	return count;
 }
 
 void GetHostName(char[] str, int size)
