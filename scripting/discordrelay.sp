@@ -662,6 +662,10 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
             hook.Send();
             delete hook;
         }
+        else 
+        {
+            ServerCommand(message);
+        }
     }
 }
 
