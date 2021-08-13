@@ -6,7 +6,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.7.0"
+#define PLUGIN_VERSION      "0.7.2"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -241,6 +241,10 @@ public void OnMapStart()
 public void OnMapEnd()
 {
     //Deleteing to refresh connection on map start
+    if(g_dBot.IsListeningToChannelID(g_sChannelId))
+        g_dBot.StopListeningToChannelID(g_sChannelId);
+    if(g_dBot.IsListeningToChannelID(g_sRCONChannelId))
+        g_dBot.StopListeningToChannelID(g_sRCONChannelId);
     delete g_dBot;
 }
 
