@@ -6,7 +6,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.7.2"
+#define PLUGIN_VERSION      "0.7.6"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -457,11 +457,16 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     if(StrEqual(msg, "connected"))
     {
         char clientCountry[64];
-        char clientIP[32];  
-        GetClientIP(client, clientIP, sizeof(clientIP));
-        GeoipCountry(clientIP, clientCountry, sizeof(clientCountry));
-        Format(embedMsg, sizeof(embedMsg), "%s from %s", msg, clientCountry);
-        Embed.AddField("", embedMsg, true);
+        char clientIP[32]; 
+        if(GetClientIP(client, clientIP, sizeof(clientIP)) && GeoipCountry(clientIP, clientCountry, sizeof(clientCountry)))
+        { 
+            Format(embedMsg, sizeof(embedMsg), "%s from %s", msg, clientCountry);
+            Embed.AddField("", embedMsg, true);
+        }
+        else {
+            Format(embedMsg, sizeof(embedMsg), "%s", msg);
+            LogError("Error retrieving client country");
+        }
     }
     else{
         Embed.AddField("", msg, true);
@@ -489,7 +494,7 @@ public void PrintToDiscordSay(int client, const char[] msg, any ...)
             return;
         hook.SetContent(msg);
         //we will just assume that if it isn't a valid client then it must be the server
-        hook.SetUsername("Server");
+        hook.SetUsername("CONSOLE");
         hook.Send();
         return;
     }
@@ -629,12 +634,12 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
         discordmessage.GetContent(message, sizeof(message));
         author.GetUsername(discorduser, sizeof(discorduser));
         author.GetDiscriminator(discriminator, sizeof(discriminator));
-        delete author;
     
         CPrintToChatAll("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
         														g_msg_varcol, discorduser, g_msg_textcol,
         														g_msg_varcol, discriminator, g_msg_textcol,
         														message);
+        delete author;
 #if defined DEBUG
         LogError("Printing message '%s' from '%s#%s' to server chat", message, discorduser, discriminator);
 #endif
@@ -675,18 +680,17 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
 
 stock void SteamAPIRequest(int client)
 {
-    HTTPClient httpClient;
+    HTTPRequest httpClient;
     char endpoint[1024];
     char steamid[64];
 
     GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
 
-    Format(endpoint, sizeof(endpoint), "ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
+    Format(endpoint, sizeof(endpoint), "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
 
-    //TODO UPDATE HTTPClient is deprecated in new ripext version
-    httpClient = new HTTPClient("https://api.steampowered.com/");
+    httpClient = new HTTPRequest(endpoint);
 
-    httpClient.Get(endpoint, SteamResponse_Callback, client);
+    httpClient.Get(SteamResponse_Callback, client);
 
 }
 
