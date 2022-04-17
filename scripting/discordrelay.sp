@@ -6,7 +6,7 @@
 #define PLUGIN_NAME         "Discord Relay"
 #define PLUGIN_AUTHOR       "log-ical"
 #define PLUGIN_DESCRIPTION  "Discord and Server interaction"
-#define PLUGIN_VERSION      "0.7.6"
+#define PLUGIN_VERSION      "0.7.8"
 #define PLUGIN_URL          "https://github.com/IsThatLogic/sp-discordrelay"
 
 #include <sourcemod>
@@ -14,7 +14,6 @@
 #include <sdktools>
 #include <cstrike>
 #include <discord>
-#include <geoip>
 #include <multicolors>
 #undef REQUIRE_EXTENSIONS
 #include <ripext>
@@ -449,28 +448,13 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     
     char steamid[65];
     char playerName[512];
-    char embedMsg[64];
     GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
     Format(playerName, sizeof(playerName), "[%N](http://www.steamcommunity.com/profiles/%s)", client, steamid);
 
     Embed.AddField("", playerName, true);
-    if(StrEqual(msg, "connected"))
-    {
-        char clientCountry[64];
-        char clientIP[32]; 
-        if(GetClientIP(client, clientIP, sizeof(clientIP)) && GeoipCountry(clientIP, clientCountry, sizeof(clientCountry)))
-        { 
-            Format(embedMsg, sizeof(embedMsg), "%s from %s", msg, clientCountry);
-            Embed.AddField("", embedMsg, true);
-        }
-        else {
-            Format(embedMsg, sizeof(embedMsg), "%s", msg);
-            LogError("Error retrieving client country");
-        }
-    }
-    else{
-        Embed.AddField("", msg, true);
-    }
+
+    Embed.AddField("", msg, true);
+    
     
     hook.Embed(Embed);
 
@@ -680,17 +664,17 @@ public void OnDiscordMessageSent(DiscordBot bot, DiscordChannel chl, DiscordMess
 
 stock void SteamAPIRequest(int client)
 {
-    HTTPRequest httpClient;
+    HTTPClient httpClient;
     char endpoint[1024];
     char steamid[64];
 
     GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
 
-    Format(endpoint, sizeof(endpoint), "https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
+    Format(endpoint, sizeof(endpoint), "ISteamUser/GetPlayerSummaries/v2/?key=%s&steamids=%s", g_sSteamApiKey, steamid);
 
-    httpClient = new HTTPRequest(endpoint);
+    httpClient = new HTTPClient("https://api.steampowered.com/");
 
-    httpClient.Get(SteamResponse_Callback, client);
+    httpClient.Get(endpoint, SteamResponse_Callback, client);
 
 }
 
@@ -698,6 +682,10 @@ stock void SteamResponse_Callback(HTTPResponse response, int client)
 {
     if (response.Status != HTTPStatus_OK){
         LogError("SteamAPI request fail, HTTPSResponse code %i", response.Status);
+		    /*connection message delayed so steamapi has time to fetch what it needs*/
+		//If there is an error, still send connection message.
+    	if(g_cvConnectMessage.BoolValue)
+        	PrintToDiscord(client, GREEN, "connected");
         return;
     }
     JSONObject objects = view_as<JSONObject>(response.Data);
