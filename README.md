@@ -4,7 +4,7 @@ Discord ⇄ Server interaction made for CS:S
 
 # Installation
 
-Place discordrelay.smx inside of `./cstrike/addons/sourcemod/plugins` and update convars to your liking in `./cstrike/cfg/sourcemod/discordrelay.cfg` after running the plugin (May take a map change for some changed to take effect).
+Place discordrelay.smx inside of `./cstrike/addons/sourcemod/plugins` and update convars in `./cstrike/cfg/sourcemod/discordrelay.cfg` after running the plugin.
 
 # Dependencies
 
