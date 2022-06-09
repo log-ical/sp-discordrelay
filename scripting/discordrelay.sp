@@ -12,7 +12,6 @@
 #include <sourcemod>
 #include <sdkhooks>
 #include <sdktools>
-#include <cstrike>
 #include <discord>
 #include <multicolors>
 #undef REQUIRE_EXTENSIONS
