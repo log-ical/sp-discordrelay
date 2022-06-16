@@ -1,6 +1,6 @@
 # sp-discordrelay
 
-Discord ⇄ Server interaction made for CS:S
+Discord ⇄ Server interaction for the Source Engine
 
 # Installation
 
