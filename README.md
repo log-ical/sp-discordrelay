@@ -10,7 +10,7 @@ Place discordrelay.smx inside of `./cstrike/addons/sourcemod/plugins` and update
 
 SteamWorks - https://forums.alliedmods.net/showthread.php?t=229556
 
-discord-api - https://forums.alliedmods.net/showthread.php?t=292448
+discord-api - https://github.com/Cruze03/sourcemod-discord
 
 ripext (sourcemod REST api) - https://forums.alliedmods.net/showthread.php?t=298024
 
