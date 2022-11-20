@@ -303,7 +303,7 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     char bsteamid[65];
     char bplayerName[512];
     GetClientAuthId(target, AuthId_SteamID64, bsteamid, sizeof(bsteamid));
-    Format(bplayerName, sizeof(bplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", target, bsteamid);
+    Format(bplayerName, sizeof(bplayerName), "[%N](https://www.steamcommunity.com/profiles/%s)", target, bsteamid);
     //Banned Player Link Embed
 
 
@@ -315,7 +315,7 @@ public void SBPP_OnBanPlayer(int admin, int target, int time, const char[] reaso
     }
     else{
     GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
-    Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
+    Format(aplayerName, sizeof(aplayerName), "[%N](https://www.steamcommunity.com/profiles/%s)", admin, asteamid);
     //Admin Link Embed
     }
 
@@ -370,7 +370,7 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     char bsteamid[65];
     char bplayerName[512];
     GetClientAuthId(target, AuthId_SteamID64, bsteamid, sizeof(bsteamid));
-    Format(bplayerName, sizeof(bplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", target, bsteamid);
+    Format(bplayerName, sizeof(bplayerName), "[%N](https://www.steamcommunity.com/profiles/%s)", target, bsteamid);
     //Banned Player Link Embed
 
 
@@ -382,7 +382,7 @@ public void SourceComms_OnBlockAdded(int admin, int target, int time, int type, 
     }
     else{
     GetClientAuthId(admin, AuthId_SteamID64, asteamid, sizeof(asteamid));
-    Format(aplayerName, sizeof(aplayerName), "[%N](http://www.steamcommunity.com/profiles/%s)", admin, asteamid);
+    Format(aplayerName, sizeof(aplayerName), "[%N](https://www.steamcommunity.com/profiles/%s)", admin, asteamid);
     //Admin Link Embed
     }
 
@@ -448,7 +448,7 @@ public void PrintToDiscord(int client, const char[] color, const char[] msg, any
     char steamid[65];
     char playerName[512];
     GetClientAuthId(client, AuthId_SteamID64, steamid, sizeof(steamid));
-    Format(playerName, sizeof(playerName), "[%N](http://www.steamcommunity.com/profiles/%s)", client, steamid);
+    Format(playerName, sizeof(playerName), "[%N](https://www.steamcommunity.com/profiles/%s)", client, steamid);
 
     Embed.AddField("", playerName, true);
 
