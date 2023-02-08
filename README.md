@@ -16,56 +16,72 @@ discord-api - https://github.com/Cruze03/sourcemod-discord
 ![unknown](https://user-images.githubusercontent.com/42725021/191847732-36a08338-ca11-4ae3-8584-ddc9a308400a.png)
 [^1]:  Thank you ampere. Image provieded by dysphie.
 
-
 ripext (sourcemod REST api) - https://forums.alliedmods.net/showthread.php?t=298024
 
 # Configuration
 
 ### discrelay_steamapikey
-This will be your steam API key which you can find at https://steamcommunity.com/dev/apikey. The key is used to grab the client `ISteamUser/GetPlayerSummaries`from the steam api so it can change the discord webhook's avatar to the clients steam avatar. If you aren't going to be using webhook avatars (discrelay_servertodiscordavatars) then you can leave this blank, just make sure that discrelay_servertodiscordavatars is 0.
+This will be your steam API key which you can find at https://steamcommunity.com/dev/apikey. The key is used to grab the client's steam avatar.
+
 ### discrelay_discordbottoken
-This will be your discord bots token which is found/created by going to https://discord.com/developers/applications, creating an application, then in the bots setting by creating a bot and copying the bot token. You do not need the bot to be running, just having it in your server will work.
-The discord bot is responsible for handling discord to server interaction, in order to use this feature discrelay_discordserverid, discrelay_channelid, and discrelay_discordtoserver need to be set correctly.
+Your discord bot token found/created by going to https://discord.com/developers/applications, creating an application, creating a bot, and copying the bot token. *You do not need the bot to be running, just having it in your server will work.*
+
 ### discrelay_discordwebhook 
-Set this to your webhook url, you can create one by going to your discord server, entering a text channels settings, integrations, create a webhook, then copy url. The webhook is needed to handle all server to discord integration, if you don't want to have anything going to your discord server from the server leave this blank and be sure to set discrelay_servertodiscord, and all message cvars (ex: discrelay_connectmessage) to 0.
+Set this to your Discord channel's webhook url. You can create one by going to your Discord server, entering a text channel's settings, then in integrations create a webhook and copy the url. 
+
 ### discrelay_discordserverid
-This is for discord to server integration, to get it make sure developer mode is enabled in your discord and right clicking on the server and clicking Copy Id. discrelay_discordbottoken, discrelay_channelid, and discrelay_discordtoserver need to be set for messages to go through.
+Enable Developer Mode in Discord, right click on the server name in the top left and click Copy ID. Required for communication between Discord and Source. 
+
 ### discrelay_channelid
-This is for discord to server integration, to get it make sure developer mode is enabled in your discord and right clicking on the channel and clicking Copy Id. **This will be the channel that messages sent in will go to the server.** discrelay_discordbottoken, discrelay_discordserverid, and discrelay_discordtoserver need to be set for messages to go through.
+Enable Developer Mode in Discord, right click on the channel name and click Copy ID. This is the channel messages will appear in.
+
 ### discrelay_servertodiscord
-Enable to allow messages sent in the server to be sent through discord through the webhook. Requires that discrelay_discordwebhook is set to a valid url.
+Enable to allow messages sent in the server to be sent through discord via webhook.
+
 ### discrelay_discordtoserver 
-Enable to allow messages sent in discord to be sent to the server. Requires discrelay_discordbottoken, discrelay_discordserverid, and discrelay_channelid to be set.
+Enable to allow messages sent in discord to be sent to the server.
+
 ### discrelay_servertodiscordavatars
-Enable to make webhooks change its avatar to the client's steam avatar. Requires that discrelay_steamapikey and discrelay_discordwebhook are valid.
+Change avatar in messages sent to Discord to the client's Steam avatar. Requires a valid Steam API key.
+
 ### discrelay_connectmessage
-Enable to allow client connection messages to be sent to discord through the webhook.
+Send client connection messages to Discord.
+
 ### discrelay_disconnectmessage 
-Enable to allow client disconnection messages to be sent to discord through the webhook.
+Send client disconnection messages to Discord.
+
 ### discrelay_mapchangemessage
-Enable to allow map changes to be sent to discord through the webhook.
+Send map change messages to Discord.
+
 ### discrelay_message
-Enable to allow client messages in the server to be sent to discord though the webhook. This is any message thats not a command, only exception is any ! command which can be hidden by enabling discrelay_hideexclammessage.
+Enable to allow client messages in the server to be sent to Discord. This is any message thats not a command, only exception is any ! command which can be hidden by enabling discrelay_hideexclammessage.
+
 ### discrelay_hideexclammessage
 Hides any message that begins with ! or /, discrelay_message needs to be enabled for this to work.
+
 ### discrelay_msg_textcol & discrelay_msg_varcol
-	CPrintToChatAll("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
+	("%s[%sDiscord%s] %s%s%s#%s%s%s: %s", 	g_msg_textcol, g_msg_varcol, g_msg_textcol,
 								g_msg_varcol, discorduser, g_msg_textcol,
 								g_msg_varcol, discriminator, g_msg_textcol,
-								message);
+								message)
 discorduser, discriminator, and message are discord things, but g_msg_textcol and g_msg_varcol refer to the colors used for the message that will be sent to the server when doing discord -> server. The plugin uses morecolors.inc to supply the colors, so when setting the cvar make sure to set it like {red} for example. Depending on the game you are using different options to set the color can be chosen such as using hex (more information here https://forums.alliedmods.net/showthread.php?t=247770). 
+
 ### discrelay_printsbppbans
-If set to 1, it will print bans, if you have sbpp installed on the server, to the location of where the discrelay_discordwebhook is set.
+Print bans, if SBPP is installed on the server.
+
 ### discrelay_printsbppcomms
-If set to 1, it will print gags, mutes, and silences, if you have sbpp installed on the server, to the location of where the discrelay_discordwebhook is set.
+Print gags, mutes, and silences, if SBPP is installed on the server.
+
 ### discrelay_sbppavatar
-This must be a URL to an image, this will be the image used for the webhooks profile picutre and footer icon for SBPP related functions.
+URL to an image. Used to change the avatar of the SBPP messages.
+
 ### discrelay_rcon_enabled
-Enabled RCON functionality, requires that the channelid for rcon commands is set.
-# WARNING TO SERVER OWNERS: Make sure only let people you trust have access to the rcon channel, all messages sent in this channel is considered to be a command
+Enable RCon functionality.
+
+# Warning to server owners: only let people you trust have access to the RCon channel; all messages sent in this channel is considered to be a command.
 ### discrelay_rcon_channelid
 Discord channel ID for where rcon commands should be sent.
 ### discrelay_rcon_printreponse
-Prints server response to the command, requires discrelay_rcon_webhook.
+Prints server response to the command.
 ### discrelay_rcon_webhook
-Webhook for rcon reponse.
+Webhook for RCon reponse.
